@@ -1,9 +1,10 @@
 import numpy as np
 
 class DiRect(object):
-    def __init__(self, f, bounds, epsilon=None, max_feval=20, max_iter=10, minimize=True):
+    def __init__(self, f, bounds, fxn_args=None, epsilon=None, max_feval=20, max_iter=10, minimize=True):
         self.f = f  # should take (D,) nparray as input
         self.bounds = bounds  # Dx2 [[lower, upper]]
+        self.fxn_args = fxn_args
         self.epsilon = epsilon
         self.max_feval = max_feval
         self.max_iter = max_iter
@@ -13,9 +14,9 @@ class DiRect(object):
             raise NotImplementedError
         
         if not self.minimize:  # means maximization problem
-            self.f_wrap = lambda x: -self.f(x)
+            self.f_wrap = lambda x, fxn_args: -self.f(x,**fxn_args)
         else:
-            self.f_wrap = self.f
+            self.f_wrap = lambda x, fxn_args: self.f(x,**fxn_args)
 
         self.scale = bounds[:,1] - bounds[:,0]
         self.shift = bounds[:,0]
@@ -65,7 +66,7 @@ class DiRect(object):
             
             new_center_u = po_rect.center.copy()
             new_center_u[side_idx] += gap
-            new_fval_u = self.f_wrap(self.u2r(new_center_u))
+            new_fval_u = self.f_wrap(self.u2r(new_center_u),self.fxn_args)
             d_new_rects[side_idx].append(Rectangle(new_center_u, new_fval_u, po_rect.sides.copy()))
             self.l_hist.append((self.u2r(new_center_u), self.true_sign(new_fval_u)))
             self.n_feval += 1
@@ -79,7 +80,7 @@ class DiRect(object):
             
             new_center_l = po_rect.center.copy()
             new_center_l[side_idx] -= gap
-            new_fval_l = self.f_wrap(self.u2r(new_center_l))
+            new_fval_l = self.f_wrap(self.u2r(new_center_l),self.fxn_args)
             d_new_rects[side_idx].append(Rectangle(new_center_l, new_fval_l, po_rect.sides.copy()))
             self.l_hist.append((self.u2r(new_center_l), self.true_sign(new_fval_l)))
             self.n_feval += 1
@@ -95,7 +96,7 @@ class DiRect(object):
         maxlen_sides = sorted(maxlen_sides, 
                               key=lambda x: min([t.f_val for t in d_new_rects[x]]))
         
-        for i in xrange(len(maxlen_sides)):
+        for i in range(len(maxlen_sides)):
             for side_idx in maxlen_sides[i:]:
                 po_rect.sides[side_idx] /= 3.  # po_rect gets divided in every (longest) dimension
                 for each_rect in d_new_rects[side_idx]:
@@ -132,7 +133,7 @@ class DiRect(object):
         border = sorted(border, key=lambda t:t[0])
         
         l_po_key = []
-        for i in xrange(len(border)-1):
+        for i in range(len(border)-1):
             if border[i][1] <= border[i+1][1]:
                 l_po_key.append(border[i][0])
         l_po_key.append(border[-1][0])
@@ -145,7 +146,7 @@ class DiRect(object):
         
         # initialize
         c = np.array([0.5] * D)
-        f_val = self.f_wrap(self.u2r(c))
+        f_val = self.f_wrap(self.u2r(c),self.fxn_args)
         s = np.array([1.]*D)
         rect = Rectangle(c, f_val, s)
         
@@ -157,7 +158,7 @@ class DiRect(object):
         self.x_at_opt = self.u2r(c)
         self.TERMINATE = False
         
-        for i in xrange(self.max_iter):            
+        for i in range(self.max_iter):            
             # select potentially optimal rectangles
 #             l_potentially_optimal = [l[0] for l in self.d_rect.values()]
             l_potentially_optimal = self.get_potentially_optimal_rects()
